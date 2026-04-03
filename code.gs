@@ -2,45 +2,88 @@ function doGet() {
   return HtmlService.createHtmlOutputFromFile("index");
 }
 
+
+const SYNC_TAG = "[Garoon]";
+
+function existsDuplicate(calendar, ev) {
+  // 少し広めに検索（APIの仕様対策）
+  const searchStart = new Date(ev.start.getTime() - 60 * 1000);
+  const searchEnd   = new Date(ev.end.getTime() + 60 * 1000);
+
+  const events = calendar.getEvents(searchStart, searchEnd);
+
+  return events.some(e => {
+    const sameTitle = e.getTitle() === ev.summary;
+    const hasTag = (e.getDescription() || "").includes(SYNC_TAG);
+    return sameTitle && hasTag;
+  });
+}
+
 /**
  * サイボウズ形式テキストをパースして登録
  */
-function syncSchedule(text) {
-  const events = parseSchedule(text);
+function syncSchedule(text,year) {
+  const events = parseSchedule(text,year);
   const calendar = CalendarApp.getDefaultCalendar();
-  // 専用カレンダーを使う場合：
+  // または同期専用カレンダー
   // const calendar = CalendarApp.getCalendarById("xxxx@group.calendar.google.com");
 
+  let added = 0;
+  let skipped = 0;
+
   events.forEach(ev => {
+    if (existsDuplicate(calendar, ev)) {
+      skipped++;
+      return;
+    }
+
+    const description = `${SYNC_TAG}Garoon予定表から同期`;
+
     if (ev.type === "allday") {
       calendar.createAllDayEvent(
         ev.summary,
         ev.start,
-        ev.end
+        ev.end,
+        { description }
       );
     } else {
       calendar.createEvent(
         ev.summary,
         ev.start,
-        ev.end
+        ev.end,
+        { description }
       );
     }
+    added++;
   });
 
-  return `${events.length} 件の予定を登録しました`;
+  return `登録: ${added} 件 / スキップ（重複）: ${skipped} 件`;
 }
 
+function zeropad(x,n) {
+  if (x.length != n) 
+    return "0"+x;
+  return x;
+}
+
+function dateStr(year,month,day,time) {
+  let dstr = year+"-";
+  dstr += zeropad(month,2)+"-";
+  dstr += zeropad(day,2)+"T";
+  dstr += zeropad(time,5)+":00";
+  return dstr;
+}
 /**
  * Pythonロジックの直移植
  */
-function parseSchedule(text) {
+function parseSchedule(text,year) {
   const lines = text.trim().split(/\r?\n/);
   const events = [];
   let currentDate = null;
 
   const datePattern = /(\d+)\s*月\s*(\d+)\s*日/;
   const eventPattern = /(\d{1,2}:\d{2})-(\d{1,2}:\d{2})\s+(.*)/;
-  const year = new Date().getFullYear();
+  //const year = new Date().getFullYear();
 
   for (const lineRaw of lines) {
     const line = lineRaw.trim();
@@ -49,8 +92,8 @@ function parseSchedule(text) {
     const dateMatch = line.match(datePattern);
     if (dateMatch) {
       currentDate = {
-        month: Number(dateMatch[1]),
-        day: Number(dateMatch[2])
+        month: dateMatch[1],
+        day: dateMatch[2]
       };
       continue;
     }
@@ -67,10 +110,10 @@ function parseSchedule(text) {
         events.push({ type: "allday", start, end, summary });
       } else {
         const start = new Date(
-          `${year}-${currentDate.month}-${currentDate.day}T${startTime}:00`
+          dateStr(year,currentDate.month,currentDate.day,startTime)
         );
         const end = new Date(
-          `${year}-${currentDate.month}-${currentDate.day}T${endTime}:00`
+          dateStr(year,currentDate.month,currentDate.day,endTime)
         );
 
         events.push({ type: "normal", start, end, summary });

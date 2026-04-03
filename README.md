@@ -83,3 +83,5 @@ MIT License
 このツールは **個人利用・社内業務効率化目的** で作成されています。  
 Garoon や Google カレンダーの仕様変更により動作しなくなる可能性があります。
 
+---
+Powered by [Copilot]{https://copilot.microsoft.com/}

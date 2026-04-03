@@ -14,14 +14,26 @@
 
     <p>サイボウズからエクスポートした予定表テキストを貼り付けてください。</p>
 
+    <label>
+    年：
+    <input type="number" id="year" style="width:6em">
+    </label>
+
+    <br><br>
+
     <textarea id="input"></textarea><br>
     <button onclick="sync()">Googleカレンダーに登録</button>
 
     <div id="status"></div>
 
     <script>
+      
+      // 初期表示時に今年をセット
+      document.getElementById("year").value = new Date().getFullYear();
+
       function sync() {
         const text = document.getElementById("input").value;
+        const year = parseInt(document.getElementById("year").value, 10);
         document.getElementById("status").textContent = "処理中…";
 
         google.script.run
@@ -31,7 +43,7 @@
           .withFailureHandler(err => {
             document.getElementById("status").textContent = "エラー: " + err.message;
           })
-          .syncSchedule(text);
+          .syncSchedule(text,year);
       }
     </script>
   </body>
